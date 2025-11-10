@@ -1,7 +1,7 @@
 # 📚 Tarea PSP06_Semaphore: Ejercicio de Semáforos en Java
 > **Asignatura:** Programación de Servicios y Procesos
 > **Autor:** Gabriel Sánchez Heredia
-> **Fecha:** 29 Octubre 2025
+> **Fecha:** 10 Noviembre 2025
 
 ---
 
