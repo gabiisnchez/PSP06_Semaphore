@@ -1,6 +1,4 @@
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.atomic.AtomicInteger;
-
 /**
  * Gestiona el acceso concurrente a las plazas del aparcamiento.
  * Utiliza un Semaphore para limitar el número de coches que pueden
@@ -8,13 +6,17 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class Aparcamiento {
 
-    // El semáforo que protege las plazas. Inicializado con el número de plazas.
+    // El semáforo que protege las plazas.
     private final Semaphore semaforo;
 
-    // Un contador atómico para llevar la cuenta de las plazas ocupadas
-    // Se usa AtomicInteger para evitar condiciones de carrera al actualizar el contador
-    // desde múltiples hilos sin usar 'synchronized'.
-    private final AtomicInteger plazasOcupadas;
+    // CAMBIO: Se usa un 'int' simple, ya que 'synchronized'
+    // gestionará la concurrencia sobre esta variable.
+    private int plazasOcupadas;
+
+    // Objeto usado para el bloqueo. Podría ser 'this',
+    // pero usar un objeto privado es una práctica más robusta.
+    private final Object lockContador = new Object();
+
 
     /**
      * Constructor que inicializa el aparcamiento con un número
@@ -23,42 +25,50 @@ public class Aparcamiento {
      * @param plazas El número de plazas disponibles en el aparcamiento.
      */
     public Aparcamiento(int plazas) {
-        // 'true' activa el modo "justo" (FIFO), para que los coches que llegan primero, entren primero.
+
         this.semaforo = new Semaphore(plazas, true);
-        this.plazasOcupadas = new AtomicInteger(0);
+        this.plazasOcupadas = 0; // Inicializa el contador
     }
 
     /**
      * Metodo que invoca un coche para intentar entrar al aparcamiento.
-     * Llama a semaphore.acquire(), que es bloqueante.
-     * El hilo (coche) se quedará esperando si no hay plazas libres.
      *
      * @param nombreCoche El nombre del coche que intenta entrar.
      * @throws InterruptedException si el hilo es interrumpido mientras espera.
      */
     public void entrar(String nombreCoche) throws InterruptedException {
-        // 1. Adquirir un permiso del semáforo
-        // Si no hay permisos (plazas) disponibles, este metodo bloquea el hilo
-        // hasta que otro hilo llame a release().
+
+        // 1. Adquirir permiso de semáforo (controla las 3 plazas)
+        // El hilo se bloquea aquí si el parking está lleno
         semaforo.acquire();
 
-        // 2. Una vez adquirido el permiso, actualizar contador e informar
-        int ocupadas = plazasOcupadas.incrementAndGet();
-        System.out.println(nombreCoche + " ha entrado. Plazas ocupadas: " + ocupadas);
+        // 2. Adquirir bloqueo 'synchronized' (controla el contador y la consola)
+        // Solo 1 hilo puede ejecutar este bloque a la vez.
+        synchronized (lockContador) {
+            // 3. Incrementar e imprimir (operación atómica)
+            plazasOcupadas++;
+            System.out.println(nombreCoche + " ha entrado. Plazas ocupadas: " + plazasOcupadas);
+        }
     }
 
     /**
      * Metodo que invoca un coche para salir del aparcamiento.
-     * Llama a semaphore.release() para liberar la plaza.
      *
      * @param nombreCoche El nombre del coche que sale.
      */
     public void salir(String nombreCoche) {
-        // 1. Actualizar contador e informar
-        int ocupadas = plazasOcupadas.decrementAndGet();
-        System.out.println(nombreCoche + " ha salido. Plazas ocupadas: " + ocupadas);
 
-        // 2. Liberar el permiso (la plaza) para que otro coche en espera pueda entrar
+        // 1. Adquirir bloqueo 'synchronized'
+        // Asegura que la salida se registra en orden
+        synchronized (lockContador) {
+            // 2. Decrementar e imprimir (operación atómica)
+            plazasOcupadas--;
+            System.out.println(nombreCoche + " ha salido. Plazas ocupadas: " + plazasOcupadas);
+        }
+
+        // 3. Liberar permiso de semáforo
+        // Se hace fuera del 'synchronized' para permitir que otro coche
+        // inicie el proceso de 'entrar()' inmediatamente.
         semaforo.release();
     }
 }
